@@ -1,49 +1,39 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
+from joblib import load
 
 st.set_page_config(layout="wide")
-st.title("Diabetes Dataset Exploration with Prediction")
+st.title("Diabetes Dataset Exploration and Prediction")
 
 # Load the saved model from disk
-model_1_file_Name = 'model_objects/pima_indians_diabetes_DecisionTree_model.pkl'
-model_2_file_Name = 'model_objects/pima_indians_diabetes_RandomForest_model.pkl'
-model_3_file_Name = 'model_objects/pima_indians_diabetes_GradientBoosting_model.pkl'
-scaler_name = 'model_objects/scaler_saved.pkl'
+model_1_file_Name = 'model_objects/pipeline1.joblib'
+model_2_file_Name = 'model_objects/pipeline2.joblib'
+model_3_file_Name = 'model_objects/pipeline3.joblib'
 data_df = 'model_objects/diabetes.csv'
 
 # Import saved models
-@st.experimental_singleton
+@st.cache_resource
 def load_data():
     data_csv = pd.read_csv(data_df)
     return data_csv
 
-@st.experimental_singleton
+@st.cache_resource
 def load_model_1():
-    model_1 = pickle.load(open(model_1_file_Name, 'rb'))
-    return model_1
+    return load(model_1_file_Name)
 
-@st.experimental_singleton
+@st.cache_resource
 def load_model_2():
-    model_2 = pickle.load(open(model_2_file_Name, 'rb'))
-    return model_2
+    return load(model_2_file_Name)
 
-@st.experimental_singleton
+@st.cache_resource
 def load_model_3():
-    model_3 = pickle.load(open(model_3_file_Name, 'rb'))
-    return model_3
-
-@st.experimental_singleton
-def load_model_4():
-    model_4 = pickle.load(open(scaler_name, 'rb'))
-    return model_4
+    return load(model_3_file_Name)
 
 df = load_data()
 DecisionTree_model = load_model_1()
 RandomForest_model = load_model_2()
 GradientBoosting_model = load_model_3()
-scaler = load_model_4()
 
 # Define the main function of the Streamlit app
 
@@ -62,6 +52,8 @@ if st.checkbox("Pre-Trained Models Stats"):
     st.write("DecisionTreeClassifier -- Accuracy: 75.32%")
     st.write("RandomForestClassifier -- Accuracy: 77.92%")
     st.write("GradientBoostingClassifier -- Accuracy: 78.79%")
+
+ask_to_show_inputs = st.checkbox("Show raw trasformed inputs")
 
 #model selector
 st.subheader("Predict")
@@ -96,18 +88,30 @@ submit = st.sidebar.button("Predict")
 if submit:
     # Standardize the new observations
     new_observations = np.array([[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, diabetes_pedigree_function, age]])
-    scaled_observations = scaler.transform(new_observations)
+    scaled_observations = selected_model[0].transform(new_observations)
 
-    st.write(new_observations)
-    st.write(scaled_observations)
+    if submit & ask_to_show_inputs:
+        st.write('raw inputs:')
+        st.write(new_observations)
+        st.write('raw transformed inputs:')
+        st.write(scaled_observations)
     
     # Make predictions on the new observations
-    prediction = selected_model.predict(scaled_observations)[0]
+    prediction = selected_model.predict(new_observations)[0]
     prediction_prob = round(np.amax(selected_model.predict_proba(new_observations)) * 100, 2)
 
-    if prediction == 0:
-        st.write("No, the", model_selector, "model predicts this individual *Does NOT* have diabetes based on the inputs provides on the laft pane")
-    else:
-        st.write("Yes, the", model_selector, "model predicts this individual *Does* have diabetes based on the inputs provides on the laft pane")
+    st.write(model_selector, "model predicts:")
 
-    st.write(model_selector, "model predicts:", prediction, "as outcome with", prediction_prob, "% Probability")
+    col1, col2 = st.columns(2)
+    col1.metric("Outcome", prediction)
+    col2.metric("Probability", prediction_prob)
+
+    if prediction == 0:
+        st.write("The", model_selector, "model predicts this individual *Does NOT* have diabetes based on the inputs provided on the left pane.")
+    else:
+        st.write("The", model_selector, "model predicts this individual *Does* have diabetes based on the inputs provided on the left pane.")
+
+
+    with st.expander("More Details about the modeling steps"):
+        st.write("These models were created using scikit-learn library using piplines. The pipline contains standard scalar + the classfier.\
+             The models can be improved with hyper-parameters and via additional data exploration techniques (i.e. removeing data points that contains 0 BMI value)")
