@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-#from joblib import load
+from joblib import load
 
 st.set_page_config(layout="wide")
 st.title("Diabetes Dataset Exploration and Prediction")
